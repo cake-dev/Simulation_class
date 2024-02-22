@@ -17,16 +17,25 @@ class ParticleMotion1D:
     
 class ParticleMotion2DWithDrag:
     
-    def __init__(self, g=-9.81, c=1.0, m=1.0):
+    def __init__(self, g=-9.81, c=1.0, m=1.0, drag_type='quadratic'):
         self.n_dof = 4  # number of degrees of freedom
         self.g = g  # acceleration due to gravity
         self.c = c  # drag coefficient
         self.m = m  # mass of the particle
+        self.drag_type = drag_type  # type of drag force (quadratic or linear)
 
     def rhs(self, t, u):
         # the right hand side of the ode (or $\mathcal{F}(t,u)$)
         dudt = np.zeros(self.n_dof)
         dudt[0] = u[1]  # dx/dt = vx (velocity is the derivative of position)
+        dudt[2] = u[3]  # dz/dt = vz 
+        if self.drag_type == 'quadratic':
+            dudt[1] = -self.c / self.m * u[1] * np.sqrt(u[1]**2 + u[3]**2)
+            dudt[3] = self.g - self.c / self.m * u[3] * np.sqrt(u[1]**2 + u[3]**2)
+        elif self.drag_type == 'linear':
+            dudt[1] = -self.c / self.m * u[1]
+            dudt[3] = self.g - self.c / self.m * u[3]
+        return dudt
         dudt[1] = -self.c / self.m * np.sqrt(u[1]**2 + u[3]**2) * u[1]  # dvx/dt = -c/m * sqrt(vx^2 + vz^2) * vx (drag force)
         dudt[2] = u[3]  # dz/dt = vz 
         dudt[3] = self.g - self.c / self.m * np.sqrt(u[1]**2 + u[3]**2) * u[3]  # dvz/dt = g - c/m * sqrt(vx^2 + vz^2) * vz 
