@@ -140,10 +140,11 @@ class PlanetaryMotion:
     
 class EulerCromer:
     def __init__(self, ode):
-        self.ode = ode
+        # self.ode = ode
+        pass
 
-    def step(self, t, dt, u_0):
-        rhs_result = self.ode.rhs(t, u_0) # gives us the derivatives i.e. for 2 bodies [vx1,vy1,vx2,vy2,dvx1/dt,dvy1/dt,dvx2/dt,dvy2/dt]
-        v = u_0[2*self.ode.N:] + rhs_result[2*self.ode.N:] * dt # update the velocities (2*self.ode.N: is the index of the velocities in the state vector u_0)
-        u = u_0[:2*self.ode.N] + v * dt # update the positions with the new velocities
+    def step(self, ode, t, dt, u_0):
+        rhs_result = ode.rhs(t, u_0) # gives us the derivatives i.e. for 2 bodies [vx1,vy1,vx2,vy2,dvx1/dt,dvy1/dt,dvx2/dt,dvy2/dt]
+        v = u_0[2*ode.N:] + rhs_result[2*ode.N:] * dt # update the velocities (2*self.ode.N: is the index of the velocities in the state vector u_0)
+        u = u_0[:2*ode.N] + v * dt # update the positions with the new velocities
         return np.concatenate([u, v]) # return the new state vector [x1,y1,x2,y2,vx1,vy1,vx2,vy2]
