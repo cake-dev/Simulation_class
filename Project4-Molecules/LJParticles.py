@@ -188,7 +188,82 @@ class LJParticleSim:
                 frame_number = 0
 
         pygame.quit()
-    
+
+    def anim_pygame_interactive(self):
+        pygame.init()
+
+        # Set up some constants
+        WIDTH, HEIGHT = 600, 600
+        FPS = 60
+        DT = 1.0 / FPS  # Time step
+
+        # Create the Pygame window
+        screen = pygame.display.set_mode((WIDTH, HEIGHT))
+
+        # Convert states to integer coordinates
+        states = np.array(self.states)
+        N = states.shape[1] // 4  # Number of particles
+        positions = states[:, :2*N].reshape((-1, N, 2))
+        velocities = states[:, 2*N:].reshape((-1, N, 2))
+
+        # Scale positions and velocities to screen size
+        positions = positions / self.box_size * np.array([WIDTH, HEIGHT])
+        velocities = velocities / self.box_size * np.array([WIDTH, HEIGHT])
+
+        # Variables for controlling simulation speed
+        frame_step = 1
+
+        # Variables for selecting a particle
+        selected_particle = None
+
+        # Main loop
+        running = True
+        frame_number = 0
+        while running:
+            # Limit the frame rate
+            pygame.time.Clock().tick(FPS)
+
+            # Handle events
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    running = False
+                elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_UP:
+                        frame_step += 1
+                    elif event.key == pygame.K_DOWN:
+                        frame_step = max(1, frame_step - 1)
+                elif event.type == pygame.MOUSEBUTTONDOWN:
+                    # Select a particle
+                    mouse_pos = np.array(pygame.mouse.get_pos())
+                    for i in range(N):
+                        if np.linalg.norm(mouse_pos - positions[frame_number, i]) < 10:
+                            selected_particle = i
+                            break
+
+            # Clear the screen
+            screen.fill((0, 0, 0))
+
+            # Draw the particles for the current frame
+            for i in range(N):
+                x, y = positions[frame_number, i]
+                pygame.draw.circle(screen, (255, 0, 0), (int(x), HEIGHT - int(y)), 5)
+
+            # Display the position and velocity of the selected particle
+            if selected_particle is not None:
+                pos = positions[frame_number, selected_particle]
+                vel = velocities[frame_number, selected_particle]
+                print(f"Particle {selected_particle}: position = {pos}, velocity = {vel}")
+
+            # Update the display
+            pygame.display.flip()
+
+            # Go to the next frame
+            frame_number += frame_step
+            if frame_number >= len(states):
+                frame_number = 0
+
+        pygame.quit()
+
     def plot(self):
         u = np.array(self.states)
         N = u.shape[1] // 4
