@@ -100,6 +100,7 @@ class LJParticleSim:
         self.dt = dt
         self.t_end = t_end
         self.num_frames = 0
+        self.total_energy = 0
         # ensure that particles are within the box and also not overlapping
         x0 = x0.reshape((N, 2))
         for i in range(N):
@@ -112,7 +113,6 @@ class LJParticleSim:
         self.lj = LennardJones(sigma, epsilon, N, np.ones(N), box_size)
         self.integrator = om.Integrator(self.lj, Cromer([PBCCallback(np.arange(2*N), box_size)]))
         self.times, self.states = self.integrator.integrate([0, t_end], dt, np.concatenate([x0, v0]))
-        self.total_energy = self.calculate_total_energy()
 
     def animate(self):
         # Set the limit to 30 MB (or whatever value you prefer)
