@@ -308,18 +308,20 @@ class LJParticleSim:
         return ax
     
     def calculate_total_energy(self):
-        # compute the temperature of the system through time, which is simply the average kinetic energy of all the particles
+        # compute the temperature of the system through time, which is simply the average kinetic energy of all the particles plus the potential energy
         u = np.array(self.states)
         N = u.shape[1] // 4 # N used to extract the velocities from the states
         v = u[:, 2*N:] # velocities used in kinetic energy calculation
         kinetic_energy = 0.5*np.sum(v**2, axis=1) # kinetic energy = 1/2 * m * v^2
-        # potential_energy = np.zeros(len(self.times))
-        # for i in range(N):
-        #     for j in range(i+1, N):
-        #         r_ij = u[:, j*2:j*2+2] - u[:, i*2:i*2+2]
-        #         r = np.linalg.norm(r_ij, axis=1)
-        #         potential_energy += 4*self.epsilon*((self.sigma/r)**12 - (self.sigma/r)**6)
-        return kinetic_energy# + potential_energy
+        potential_energy = np.zeros(len(self.times))
+        for i in range(N):
+            for j in range(i+1, N):
+                r_ij = u[:, j*2:j*2+2] - u[:, i*2:i*2+2]
+                r = np.linalg.norm(r_ij, axis=1)
+                potential_energy += 4*self.epsilon*((self.sigma/r)**12 - (self.sigma/r)**6)
+        print(f'Kinetic energy: {kinetic_energy}')
+        print(f'Potential energy: {potential_energy}')
+        return kinetic_energy + potential_energy
 
 if __name__ == '__main__':
     # N particles in a LxL box
