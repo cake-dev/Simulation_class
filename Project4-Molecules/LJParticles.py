@@ -5,7 +5,24 @@ from IPython.display import HTML
 import ode_methods as om
 import matplotlib
 import pygame
+from numba import jit, float64, int64, boolean, types
 
+@jit(float64[:](float64[:], float64[:], float64), nopython=True)
+def periodic_distance(xi,xj,L):
+    dx = xj[0] - xi[0]
+    dy = xj[1] - xi[1]
+    
+    if dx>(0.5*L):
+        dx -= L
+    elif dx<(-0.5*L):
+        dx += L
+    
+    if dy>(0.5*L):
+        dy -= L
+    elif dy<(-0.5*L):
+        dy += L
+    
+    return np.array([dx,dy])
 class LennardJones:
     
     def __init__(self, sigma, epsilon, N, masses, box_size=None):
@@ -16,28 +33,7 @@ class LennardJones:
         self.box_size = box_size
 
     def periodic_distance(self, xi,xj,L):
-        '''
-        Compute the distance between two particles in a periodic box.
-        Returns the smallest distance between the two particles.
-        '''
-        dx = xj[0] - xi[0]
-        dy = xj[1] - xi[1]
-        
-        if dx>(0.5*L):
-            dx -= L
-        elif dx<(-0.5*L):
-            dx += L
-        else:
-            pass
-        
-        if dy>(0.5*L):
-            dy -= L
-        elif dy<(-0.5*L):
-            dy += L
-        else:
-            pass
-        
-        return np.array([dx,dy])
+        return periodic_distance(xi, xj, L)
     
     def rhs(self,t,u):
         positions = u[:2*self.N].reshape((self.N, 2))
