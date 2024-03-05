@@ -23,6 +23,29 @@ def periodic_distance(xi,xj,L):
         dy += L
     
     return np.array([dx,dy])
+
+@jit(nopython=True)
+def rhs(t,u, N, epsilon, sigma, box_size=None):
+    positions = u[:2*N].reshape((N, 2))
+    velocities = u[2*N:].reshape((N, 2))
+    dxdt = velocities
+    dvdt = np.zeros(velocities.shape, dtype=np.float64)
+
+    for i in range(N):
+        for j in range(i+1, N): # Avoid double calculation and self interaction
+            r_ij = positions[j] - positions[i]
+            # Apply minimum image convention for periodic boundary conditions
+            if box_size is not None:
+                r_ij = periodic_distance(positions[i], positions[j], box_size)
+            r = np.linalg.norm(r_ij)
+            dvdt[i] += -24*epsilon/r*(2*(sigma/r)**12 - (sigma/r)**6) * (r_ij/r)
+            dvdt[j] -= -24*epsilon/r*(2*(sigma/r)**12 - (sigma/r)**6) * (r_ij/r) # Newton's third law
+
+    dudt = np.empty(dxdt.size + dvdt.size, dtype=np.float64)
+    dudt[:dxdt.size] = dxdt.flatten()
+    dudt[dxdt.size:] = dvdt.flatten()
+    return dudt
+
 class LennardJones:
     
     def __init__(self, sigma, epsilon, N, masses, box_size=None):
@@ -36,23 +59,24 @@ class LennardJones:
         return periodic_distance(xi, xj, L)
     
     def rhs(self,t,u):
-        positions = u[:2*self.N].reshape((self.N, 2))
-        velocities = u[2*self.N:].reshape((self.N, 2))
-        dxdt = velocities
-        dvdt = np.zeros_like(velocities, dtype=float)
+        return rhs(t,u, self.N, self.epsilon, self.sigma, self.box_size)
+        # positions = u[:2*self.N].reshape((self.N, 2))
+        # velocities = u[2*self.N:].reshape((self.N, 2))
+        # dxdt = velocities
+        # dvdt = np.zeros_like(velocities, dtype=float)
 
-        for i in range(self.N):
-            for j in range(i+1, self.N): # Avoid double calculation and self interaction
-                r_ij = positions[j] - positions[i]
-                # Apply minimum image convention for periodic boundary conditions
-                if self.box_size is not None:
-                    r_ij = self.periodic_distance(positions[i], positions[j], self.box_size)
-                r = np.linalg.norm(r_ij)
-                dvdt[i] += -24*self.epsilon/r*(2*(self.sigma/r)**12 - (self.sigma/r)**6) * (r_ij/r)
-                dvdt[j] -= -24*self.epsilon/r*(2*(self.sigma/r)**12 - (self.sigma/r)**6) * (r_ij/r) # Newton's third law
+        # for i in range(self.N):
+        #     for j in range(i+1, self.N): # Avoid double calculation and self interaction
+        #         r_ij = positions[j] - positions[i]
+        #         # Apply minimum image convention for periodic boundary conditions
+        #         if self.box_size is not None:
+        #             r_ij = self.periodic_distance(positions[i], positions[j], self.box_size)
+        #         r = np.linalg.norm(r_ij)
+        #         dvdt[i] += -24*self.epsilon/r*(2*(self.sigma/r)**12 - (self.sigma/r)**6) * (r_ij/r)
+        #         dvdt[j] -= -24*self.epsilon/r*(2*(self.sigma/r)**12 - (self.sigma/r)**6) * (r_ij/r) # Newton's third law
 
-        dudt = np.concatenate([dxdt.flatten(), dvdt.flatten()])
-        return dudt
+        # dudt = np.concatenate([dxdt.flatten(), dvdt.flatten()])
+        # return dudt
     
 class Cromer:
     def __init__(self,callbacks=[]):
@@ -85,10 +109,17 @@ class PBCCallback:
     
 
 # a class for both the simulation and the animation
-
+    
+@jit(nopython=True)
+def fixPositions(positions, box_size, sigma):
+    for i in range(positions.shape[0]):
+        for j in range(i+1, positions.shape[0]):
+            while np.linalg.norm(positions[i]-positions[j]) < 2**(1/6)*sigma:
+                positions[j] = np.random.rand(2)*box_size
+    return positions
 class LJParticleSim:
 
-    def __init__(self, N, box_size, sigma, epsilon, dt, t_end, x0, v0):
+    def __init__(self, N, box_size, sigma, epsilon, dt, t_end, x0, v0, isRandom=False):
         self.N = N
         self.box_size = box_size
         self.sigma = sigma
@@ -98,12 +129,14 @@ class LJParticleSim:
         self.num_frames = 0
         self.total_energy = 0
         # ensure that particles are within the box and also not overlapping
-        x0 = x0.reshape((N, 2))
-        for i in range(N):
-            for j in range(i+1, N):
-                while np.linalg.norm(x0[i]-x0[j]) < 2**(1/6)*sigma:
-                    x0[j] = np.random.rand(2)*box_size
-        x0 = x0.flatten()
+        if isRandom:
+            x0 = x0.reshape((N, 2))
+            x0 = fixPositions(x0, box_size, sigma)
+            # for i in range(N):
+            #     for j in range(i+1, N):
+            #         while np.linalg.norm(x0[i]-x0[j]) < 2**(1/6)*sigma:
+            #             x0[j] = np.random.rand(2)*box_size
+            x0 = x0.flatten()
         self.x0 = x0
         self.v0 = v0
         self.lj = LennardJones(sigma, epsilon, N, np.ones(N), box_size)
@@ -246,8 +279,8 @@ class LJParticleSim:
 
             # Display the position and velocity of the selected particle
             if selected_particle is not None:
-                pos = positions[frame_number, selected_particle]
-                vel = velocities[frame_number, selected_particle]
+                pos = positions[frame_number, selected_particle] / np.array([WIDTH, HEIGHT]) * self.box_size
+                vel = velocities[frame_number, selected_particle] / np.array([WIDTH, HEIGHT]) * self.box_size
                 print(f"Particle {selected_particle}: position = {pos}, velocity = {vel}")
 
             # Update the display
@@ -275,18 +308,18 @@ class LJParticleSim:
         return ax
     
     def calculate_total_energy(self):
-        # compute the temperature of the system through time, which is simply the average kinetic energy of all the particles (technically, proportional to, with the Boltzmann constant as the constant of proportionality, but this is really just a matter of changing units).  Does the kinetic energy change through time?  Does it find an equilibrium?**
+        # compute the temperature of the system through time, which is simply the average kinetic energy of all the particles
         u = np.array(self.states)
-        N = u.shape[1] // 4
-        v = u[:, 2*N:]
-        kinetic_energy = 0.5*np.sum(v**2, axis=1)
-        potential_energy = np.zeros(len(self.times))
-        for i in range(N):
-            for j in range(i+1, N):
-                r_ij = u[:, j*2:j*2+2] - u[:, i*2:i*2+2]
-                r = np.linalg.norm(r_ij, axis=1)
-                potential_energy += 4*self.epsilon*((self.sigma/r)**12 - (self.sigma/r)**6)
-        return kinetic_energy + potential_energy
+        N = u.shape[1] // 4 # N used to extract the velocities from the states
+        v = u[:, 2*N:] # velocities used in kinetic energy calculation
+        kinetic_energy = 0.5*np.sum(v**2, axis=1) # kinetic energy = 1/2 * m * v^2
+        # potential_energy = np.zeros(len(self.times))
+        # for i in range(N):
+        #     for j in range(i+1, N):
+        #         r_ij = u[:, j*2:j*2+2] - u[:, i*2:i*2+2]
+        #         r = np.linalg.norm(r_ij, axis=1)
+        #         potential_energy += 4*self.epsilon*((self.sigma/r)**12 - (self.sigma/r)**6)
+        return kinetic_energy# + potential_energy
 
 if __name__ == '__main__':
     # N particles in a LxL box
