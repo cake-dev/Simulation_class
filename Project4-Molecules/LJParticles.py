@@ -282,6 +282,9 @@ class LJParticleSim:
                 pos = positions[frame_number, selected_particle] / np.array([WIDTH, HEIGHT]) * self.box_size
                 vel = velocities[frame_number, selected_particle] / np.array([WIDTH, HEIGHT]) * self.box_size
                 print(f"Particle {selected_particle}: position = {pos}, velocity = {vel}")
+                # Draw a circle around the selected particle
+                x, y = positions[frame_number, selected_particle]
+                pygame.draw.circle(screen, (0, 0, 255), (int(x), HEIGHT - int(y)), 10, 2)
 
             # Update the display
             pygame.display.flip()
@@ -321,7 +324,7 @@ class LJParticleSim:
                 potential_energy += 4*self.epsilon*((self.sigma/r)**12 - (self.sigma/r)**6)
         print(f'Kinetic energy: {kinetic_energy}')
         print(f'Potential energy: {potential_energy}')
-        return kinetic_energy + potential_energy
+        return kinetic_energy, potential_energy
 
 if __name__ == '__main__':
     # N particles in a LxL box
