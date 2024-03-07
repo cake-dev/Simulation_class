@@ -5,7 +5,7 @@ from IPython.display import HTML
 import ode_methods as om
 import matplotlib
 import pygame
-from numba import jit, float64, int64, boolean, types
+from numba import jit, float64
 
 @jit(float64[:](float64[:], float64[:], float64), nopython=True)
 def periodic_distance(xi,xj,L):
@@ -40,7 +40,7 @@ def rhs(t,u, N, epsilon, sigma, box_size=None, has_drag=False, drag_coefficient=
             r = np.linalg.norm(r_ij)
             dvdt[i] += -24*epsilon/r*(2*(sigma/r)**12 - (sigma/r)**6) * (r_ij/r)
             dvdt[j] -= -24*epsilon/r*(2*(sigma/r)**12 - (sigma/r)**6) * (r_ij/r) # Newton's third law (action-reaction pair where i is the particle and j is the particle it is interacting with)
-            if has_drag:
+            if has_drag: # if the system has drag, apply the drag force to the velocities (F=-c*v where c is the drag coefficient and v is the velocity vector)
                 dvdt[i] += -drag_coefficient*velocities[i]
                 dvdt[j] += -drag_coefficient*velocities[j]
 
@@ -65,23 +65,6 @@ class LennardJones:
     
     def rhs(self,t,u):
         return rhs(t,u, self.N, self.epsilon, self.sigma, self.box_size, self.has_drag, self.drag_coefficient)
-        # positions = u[:2*self.N].reshape((self.N, 2))
-        # velocities = u[2*self.N:].reshape((self.N, 2))
-        # dxdt = velocities
-        # dvdt = np.zeros_like(velocities, dtype=float)
-
-        # for i in range(self.N):
-        #     for j in range(i+1, self.N): # Avoid double calculation and self interaction
-        #         r_ij = positions[j] - positions[i]
-        #         # Apply minimum image convention for periodic boundary conditions
-        #         if self.box_size is not None:
-        #             r_ij = self.periodic_distance(positions[i], positions[j], self.box_size)
-        #         r = np.linalg.norm(r_ij)
-        #         dvdt[i] += -24*self.epsilon/r*(2*(self.sigma/r)**12 - (self.sigma/r)**6) * (r_ij/r)
-        #         dvdt[j] -= -24*self.epsilon/r*(2*(self.sigma/r)**12 - (self.sigma/r)**6) * (r_ij/r) # Newton's third law
-
-        # dudt = np.concatenate([dxdt.flatten(), dvdt.flatten()])
-        # return dudt
     
 class Cromer:
     def __init__(self,callbacks=[]):
@@ -171,57 +154,6 @@ class LJParticleSim:
         animation.save('lj_particles.mp4', writer='ffmpeg', fps=240);
         return 0;
         # return HTML(animation.to_jshtml());
-
-    def animate_pygame(self):
-        pygame.init()
-
-        # Set up some constants
-        WIDTH, HEIGHT = 600, 600
-        FPS = 240
-        DT = 1.0 / FPS  # Time step
-
-        # Create the Pygame window
-        screen = pygame.display.set_mode((WIDTH, HEIGHT))
-
-        # Convert states to integer coordinates
-        states = np.array(self.states)
-        N = states.shape[1] // 4  # Number of particles
-        positions = states[:, :2*N].reshape((-1, N, 2))
-        velocities = states[:, 2*N:].reshape((-1, N, 2))
-
-        # Scale positions and velocities to screen size
-        positions = positions / self.box_size * np.array([WIDTH, HEIGHT])
-        velocities = velocities / self.box_size * np.array([WIDTH, HEIGHT])
-
-        # Main loop
-        running = True
-        frame_number = 0
-        while running:
-            # Limit the frame rate
-            pygame.time.Clock().tick(FPS)
-
-            # Handle events
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    running = False
-
-            # Clear the screen
-            screen.fill((0, 0, 0))
-
-            # Draw the particles for the current frame
-            for i in range(N):
-                x, y = positions[frame_number, i]
-                pygame.draw.circle(screen, (255, 0, 0), (int(x), HEIGHT - int(y)), 5)
-
-            # Update the display
-            pygame.display.flip()
-
-            # Go to the next frame
-            frame_number += 1
-            if frame_number >= len(states):
-                frame_number = 0
-
-        pygame.quit()
 
     def anim_pygame_interactive(self):
         pygame.init()
