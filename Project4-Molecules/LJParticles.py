@@ -25,7 +25,7 @@ def periodic_distance(xi,xj,L):
     return np.array([dx,dy])
 
 @jit(nopython=True)
-def rhs(t,u, N, epsilon, sigma, box_size=None):
+def rhs(t,u, N, epsilon, sigma, box_size=None, has_drag=False, drag_coefficient=0.0):
     positions = u[:2*N].reshape((N, 2))
     velocities = u[2*N:].reshape((N, 2))
     dxdt = velocities
@@ -39,7 +39,10 @@ def rhs(t,u, N, epsilon, sigma, box_size=None):
                 r_ij = periodic_distance(positions[i], positions[j], box_size)
             r = np.linalg.norm(r_ij)
             dvdt[i] += -24*epsilon/r*(2*(sigma/r)**12 - (sigma/r)**6) * (r_ij/r)
-            dvdt[j] -= -24*epsilon/r*(2*(sigma/r)**12 - (sigma/r)**6) * (r_ij/r) # Newton's third law
+            dvdt[j] -= -24*epsilon/r*(2*(sigma/r)**12 - (sigma/r)**6) * (r_ij/r) # Newton's third law (action-reaction pair where i is the particle and j is the particle it is interacting with)
+            if has_drag:
+                dvdt[i] += -drag_coefficient*velocities[i]
+                dvdt[j] += -drag_coefficient*velocities[j]
 
     dudt = np.empty(dxdt.size + dvdt.size, dtype=np.float64)
     dudt[:dxdt.size] = dxdt.flatten()
@@ -48,18 +51,20 @@ def rhs(t,u, N, epsilon, sigma, box_size=None):
 
 class LennardJones:
     
-    def __init__(self, sigma, epsilon, N, masses, box_size=None):
+    def __init__(self, sigma, epsilon, N, masses, box_size=None, has_drag=False, drag_coefficient=0.0):
         self.sigma = sigma
         self.epsilon = epsilon
         self.N = N
         self.masses = masses
         self.box_size = box_size
+        self.has_drag = has_drag
+        self.drag_coefficient = drag_coefficient
 
     def periodic_distance(self, xi,xj,L):
         return periodic_distance(xi, xj, L)
     
     def rhs(self,t,u):
-        return rhs(t,u, self.N, self.epsilon, self.sigma, self.box_size)
+        return rhs(t,u, self.N, self.epsilon, self.sigma, self.box_size, self.has_drag, self.drag_coefficient)
         # positions = u[:2*self.N].reshape((self.N, 2))
         # velocities = u[2*self.N:].reshape((self.N, 2))
         # dxdt = velocities
@@ -119,7 +124,7 @@ def fixPositions(positions, box_size, sigma):
     return positions
 class LJParticleSim:
 
-    def __init__(self, N, box_size, sigma, epsilon, dt, t_end, x0, v0, isRandom=False):
+    def __init__(self, N, box_size, sigma, epsilon, dt, t_end, x0, v0, isRandom=False, has_drag=False, drag_coefficient=0.0):
         self.N = N
         self.box_size = box_size
         self.sigma = sigma
@@ -139,7 +144,7 @@ class LJParticleSim:
             x0 = x0.flatten()
         self.x0 = x0
         self.v0 = v0
-        self.lj = LennardJones(sigma, epsilon, N, np.ones(N), box_size)
+        self.lj = LennardJones(sigma, epsilon, N, np.ones(N), box_size, has_drag, drag_coefficient)
         self.integrator = om.Integrator(self.lj, Cromer([PBCCallback(np.arange(2*N), box_size)]))
         self.times, self.states = self.integrator.integrate([0, t_end], dt, np.concatenate([x0, v0]))
 
