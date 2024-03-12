@@ -98,12 +98,24 @@ class PBCCallback:
 
 # a class for both the simulation and the animation
     
+# @jit(nopython=True)
+# def fixPositions(positions, box_size, sigma):
+#     for i in range(positions.shape[0]):
+#         for j in range(i+1, positions.shape[0]):
+#             while np.linalg.norm(positions[i]-positions[j]) < 2**(1/6)*sigma:
+#                 positions[j] = np.random.rand(2)*box_size
+#     return positions
+
 @jit(nopython=True)
 def fixPositions(positions, box_size, sigma):
-    for i in range(positions.shape[0]):
-        for j in range(i+1, positions.shape[0]):
-            while np.linalg.norm(positions[i]-positions[j]) < 2**(1/6)*sigma:
-                positions[j] = np.random.rand(2)*box_size
+    close_particles_exist = True
+    while close_particles_exist:
+        close_particles_exist = False
+        for i in range(positions.shape[0]):
+            for j in range(i+1, positions.shape[0]):
+                if np.linalg.norm(positions[i]-positions[j]) < 2**(1/6)*sigma:
+                    positions[j] = np.random.rand(2)*box_size
+                    close_particles_exist = True
     return positions
 class LJParticleSim:
 
